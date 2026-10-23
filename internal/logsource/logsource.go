@@ -53,6 +53,7 @@ type LogSource struct {
 	PodLogSource PodLogSource `json:"pod_log_source,omitzero"`
 }
 
+// TODO - Maybe generate id
 // NewFileLogSource creates a new LogSource of type File with the provided parameters.
 func NewFileLogSource(id string, name string, filePath string, filePattern string) *LogSource {
 	FileLogSource := FileLogSource{
@@ -68,6 +69,7 @@ func NewFileLogSource(id string, name string, filePath string, filePattern strin
 	}
 }
 
+// TODO - Maybe generate id
 // NewPodLogSource creates a new LogSource of type Pod with the provided parameters.
 func NewPodLogSource(id string, name string, namespace string, podName string) *LogSource {
 	PodLogSource := PodLogSource{
@@ -155,6 +157,9 @@ func retrieveLastNLinesFromFileSource(source LogSource, n int) ([]string, error)
 	if len(matchingFiles) > 1 {
 		return []string{},
 			fmt.Errorf("Multiple log files match the pattern: %s. Refine your file pattern to match a single log file.", effectiveFilePattern)
+	}
+	if len(matchingFiles) == 0 {
+		return []string{}, nil
 	}
 	targetFile := matchingFiles[0]
 
