@@ -1,11 +1,10 @@
 package persistence_test
 
 import (
-	"cmp"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -13,7 +12,7 @@ import (
 	"github.com/lbroglio/K8sLogRetrievalAPI.git/internal/persistence"
 )
 
-func assertSavedFileContent(t *testing.T, expectedFile string, expectedLogSources []logsource.LogSource) {
+func assertSavedFileContent(t *testing.T, expectedFile string, expectedLogSources map[string]logsource.LogSource) {
 	t.Helper()
 
 	// Load the saved log sources and verify the saved log source is present
@@ -22,32 +21,24 @@ func assertSavedFileContent(t *testing.T, expectedFile string, expectedLogSource
 		t.Fatalf("Failed to read saved log sources: %v", err)
 	}
 
-	savedLogSources := []logsource.LogSource{}
+	savedLogSources := make(map[string]logsource.LogSource)
 	err = json.Unmarshal(contentJSON, &savedLogSources)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal saved log sources: %v", err)
 	}
 
-	result := unorderedEqual(t, expectedLogSources, savedLogSources)
+	result := compareSourcesMaps(t, expectedLogSources, savedLogSources)
 	if !result {
 		t.Fatalf("Saved log sources do not match expected. Expected: %v, Got: %v", expectedLogSources, savedLogSources)
 	}
 }
 
-func unorderedEqual(t *testing.T, a []logsource.LogSource, b []logsource.LogSource) bool {
+func compareSourcesMaps(t *testing.T, a map[string]logsource.LogSource, b map[string]logsource.LogSource) bool {
 	t.Helper()
 
-	sortedA := slices.Clone(a)
-	sortedB := slices.Clone(b)
-
-	slices.SortFunc(sortedA, func(a logsource.LogSource, j logsource.LogSource) int {
-		return cmp.Compare(a.ID, j.ID)
+	return maps.EqualFunc(a, b, func(a logsource.LogSource, b logsource.LogSource) bool {
+		return a.ID == b.ID
 	})
-	slices.SortFunc(sortedB, func(a logsource.LogSource, b logsource.LogSource) int {
-		return cmp.Compare(a.ID, b.ID)
-	})
-
-	return slices.Equal(sortedA, sortedB)
 }
 
 func TestSaveLogSource_SingleLogSource_Success(t *testing.T) {
@@ -62,7 +53,8 @@ func TestSaveLogSource_SingleLogSource_Success(t *testing.T) {
 		Type: logsource.File,
 	}
 
-	expectedLogSources := []logsource.LogSource{logSource}
+	expectedLogSources := make(map[string]logsource.LogSource)
+	expectedLogSources[logSource.ID] = logSource
 
 	err := persistence.SaveLogSource(logSource)
 	if err != nil {
@@ -91,7 +83,9 @@ func TestSaveLogSource_SingleExistingLogSource_Success(t *testing.T) {
 		Type: logsource.File,
 	}
 
-	expectedLogSources := []logsource.LogSource{logSource, otherLogSource}
+	expectedLogSources := make(map[string]logsource.LogSource)
+	expectedLogSources[logSource.ID] = logSource
+	expectedLogSources[otherLogSource.ID] = otherLogSource
 
 	err := persistence.SaveLogSource(logSource)
 	if err != nil {
@@ -129,7 +123,10 @@ func TestSaveLogSource_MultipleExistingLogSource_Success(t *testing.T) {
 		Type: logsource.File,
 	}
 
-	expectedLogSources := []logsource.LogSource{logSource, otherLogSource, thirdLogSource}
+	expectedLogSources := make(map[string]logsource.LogSource)
+	expectedLogSources[logSource.ID] = logSource
+	expectedLogSources[otherLogSource.ID] = otherLogSource
+	expectedLogSources[thirdLogSource.ID] = thirdLogSource
 
 	err := persistence.SaveLogSource(logSource)
 	if err != nil {
@@ -168,7 +165,7 @@ func TestSaveLogSource_PodLogSource_Success(t *testing.T) {
 	}
 
 	expectedFile := filepath.Join(tempDir, "log_sources.json")
-	assertSavedFileContent(t, expectedFile, []logsource.LogSource{logSource})
+	assertSavedFileContent(t, expectedFile, map[string]logsource.LogSource{logSource.ID: logSource})
 }
 
 func TestSaveLogSource_InvalidExistingFile_Error(t *testing.T) {
@@ -223,7 +220,8 @@ func TestLoadSavedLogSources_SingleLogSource_Success(t *testing.T) {
 		Type: logsource.File,
 	}
 
-	expectedLogSources := []logsource.LogSource{logSource}
+	expectedLogSources := make(map[string]logsource.LogSource)
+	expectedLogSources[logSource.ID] = logSource
 
 	err := persistence.SaveLogSource(logSource)
 	if err != nil {
@@ -236,7 +234,7 @@ func TestLoadSavedLogSources_SingleLogSource_Success(t *testing.T) {
 		t.Fatalf("Failed to load saved log sources: %v", err)
 	}
 
-	result := unorderedEqual(t, expectedLogSources, savedLogSources)
+	result := compareSourcesMaps(t, expectedLogSources, savedLogSources)
 	if !result {
 		t.Fatalf("Saved log sources do not match expected. Expected: %v, Got: %v", expectedLogSources, savedLogSources)
 	}
@@ -274,12 +272,12 @@ func TestLoadSavedLogSources_InvalidJSON_Error(t *testing.T) {
 	}
 }
 
-func TestLoadSavedLogSources_EmptyList_Success(t *testing.T) {
+func TestLoadSavedLogSources_EmptyMap_Success(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", tempDir)
 
 	sourcesFilePath := filepath.Join(tempDir, "log_sources.json")
-	err := os.WriteFile(sourcesFilePath, []byte("[]"), 0644)
+	err := os.WriteFile(sourcesFilePath, []byte("{}"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write empty log sources: %v", err)
 	}
@@ -315,7 +313,10 @@ func TestLoadSavedLogSources_MultipleLogSources_Success(t *testing.T) {
 		Type: logsource.File,
 	}
 
-	expectedLogSources := []logsource.LogSource{logSource, otherLogSource, thirdLogSource}
+	expectedLogSources := make(map[string]logsource.LogSource)
+	expectedLogSources[logSource.ID] = logSource
+	expectedLogSources[otherLogSource.ID] = otherLogSource
+	expectedLogSources[thirdLogSource.ID] = thirdLogSource
 
 	sourcesJSON, err := json.Marshal(expectedLogSources)
 	if err != nil {
@@ -333,7 +334,7 @@ func TestLoadSavedLogSources_MultipleLogSources_Success(t *testing.T) {
 		t.Fatalf("Failed to load saved log sources: %v", err)
 	}
 
-	result := unorderedEqual(t, expectedLogSources, savedLogSources)
+	result := compareSourcesMaps(t, expectedLogSources, savedLogSources)
 	if !result {
 		t.Fatalf("Saved log sources do not match expected. Expected: %v, Got: %v", expectedLogSources, savedLogSources)
 	}

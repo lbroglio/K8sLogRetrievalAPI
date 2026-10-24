@@ -3,6 +3,7 @@ package persistence
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -16,16 +17,17 @@ func SaveLogSource(source logsource.LogSource) error {
 	persistenceRoot := config.GetPersistenceRootPath()
 
 	saveFilePath := filepath.Join(persistenceRoot, "log_sources.json")
-	logSources := []logsource.LogSource{source}
+	logSources := make(map[string]logsource.LogSource)
 
-	// If there are already saved log sources, load them and append them to the list to be saved.
+	// If there are already saved log sources, load them
 	if util.FileExists(saveFilePath) {
 		savedLogSources, err := LoadSavedLogSources()
 		if err != nil {
 			return fmt.Errorf("Failed to load saved log sources. Root Cause: %w", err)
 		}
-		logSources = append(logSources, savedLogSources...)
+		maps.Copy(logSources, savedLogSources)
 	}
+	logSources[source.ID] = source
 
 	logSourcesJSON, err := json.Marshal(logSources)
 	if err != nil {
@@ -41,7 +43,7 @@ func SaveLogSource(source logsource.LogSource) error {
 }
 
 // LoadSavedLogSources loads the saved log sources from disk and returns them as a slice of LogSource objects.
-func LoadSavedLogSources() ([]logsource.LogSource, error) {
+func LoadSavedLogSources() (map[string]logsource.LogSource, error) {
 	persistenceRoot := config.GetPersistenceRootPath()
 
 	saveFilePath := filepath.Join(persistenceRoot, "log_sources.json")
@@ -51,7 +53,7 @@ func LoadSavedLogSources() ([]logsource.LogSource, error) {
 		return nil, fmt.Errorf("Failed to read log sources from disk. Root Cause: %w", err)
 	}
 
-	logSources := []logsource.LogSource{}
+	logSources := make(map[string]logsource.LogSource)
 	err = json.Unmarshal(contents, &logSources)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to unmarshal log sources. Root Cause: %w", err)
