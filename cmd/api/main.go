@@ -1,7 +1,10 @@
 package api
 
+// TODO - Logging
+
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/lbroglio/K8sLogRetrievalAPI.git/internal/logsource"
@@ -28,14 +31,19 @@ func returnErrorResponse(writer http.ResponseWriter, statusCode int, errorMessag
 func handleLogSource(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
+		slog.Info("Received GET request to retrieve all log sources")
 		allLogSources := logStore.GetAllValues()
+		slog.Info("Returning all log sources", "count", len(allLogSources))
+
 		writer.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(writer).Encode(allLogSources)
 	case http.MethodPost:
+		slog.Info("Received POST request to add a new log source")
 		// Parse the request body to get the new log source
 		newLogSource := logsource.LogSource{}
 		err := json.NewDecoder(request.Body).Decode(&newLogSource)
 		if err != nil {
+			slog.Error("Failed to decode new log source request body. Returning 400 Bad Request.", "error", err)
 			returnErrorResponse(writer, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -44,6 +52,7 @@ func handleLogSource(writer http.ResponseWriter, request *http.Request) {
 
 		idAlreadyExists := logStore.ContainsKey(newLogSource.ID)
 		if idAlreadyExists {
+			slog.Error("Log source with the same ID already exists. Returning 409 Conflict.", "logSourceID", newLogSource.ID)
 			returnErrorResponse(writer, http.StatusConflict, "Log source with the same ID already exists")
 			return
 		}
@@ -51,28 +60,31 @@ func handleLogSource(writer http.ResponseWriter, request *http.Request) {
 		// Add the new log source to the in-memory store and persist it to disk
 		err = persistence.SaveLogSource(newLogSource)
 		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Header().Set("Content-Type", "application/json")
-			errorResponse := ErrorResponse{Error: "Failed to save log source"}
-			json.NewEncoder(writer).Encode(errorResponse)
+			slog.Error("Failed to save log source. Returning 500 Internal Server Error.", "error", err)
+			returnErrorResponse(writer, http.StatusInternalServerError, "Failed to save log source")
 			return
 		}
 		logStore.Put(newLogSource.ID, newLogSource)
+		slog.Info("Log source added successfully.", "logSourceID", newLogSource.ID)
 
 		writer.WriteHeader(http.StatusCreated)
 		writer.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(writer).Encode(newLogSource)
 	case http.MethodPut:
+		slog.Info("Received PUT request to update log source.")
+
 		// Parse the request body to get the updated log source
 		updatedLogSource := logsource.LogSource{}
 		err := json.NewDecoder(request.Body).Decode(&updatedLogSource)
 		if err != nil {
+			slog.Error("Failed to decode updated log source request body. Returning 400 Bad Request.", "error", err)
 			returnErrorResponse(writer, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		idExists := logStore.ContainsKey(updatedLogSource.ID)
 		if !idExists {
+			slog.Error("Log source with the given ID does not exist. Returning 404 Not Found.", "logSourceID", updatedLogSource.ID)
 			returnErrorResponse(writer, http.StatusNotFound, "Log source with the given ID does not exist")
 			return
 		}
@@ -82,11 +94,13 @@ func handleLogSource(writer http.ResponseWriter, request *http.Request) {
 		// Update the log source in the in-memory store and persist it to disk
 		err = persistence.SaveLogSource(updatedLogSource)
 		if err != nil {
+			slog.Error("Failed to update log source. Returning 500 Internal Server Error.", "error", err)
 			returnErrorResponse(writer, http.StatusInternalServerError, "Failed to update log source")
 			return
 		}
 		logStore.Put(updatedLogSource.ID, updatedLogSource)
 
+		slog.Info("Log source updated successfully.", "logSourceID", updatedLogSource.ID)
 	// Throw 405 Method Not Allowed for unsupported methods
 	default:
 		returnErrorResponse(writer, http.StatusMethodNotAllowed, "Method not allowed")
@@ -95,4 +109,19 @@ func handleLogSource(writer http.ResponseWriter, request *http.Request) {
 
 func main() {
 	logStore = util.NewConcurrentMap[string, logsource.LogSource]()
+
+	// Load persistence
+	savedLogSources, err := persistence.LoadSavedLogSources()
+	if err != nil {
+		slog.Error("Failed to load saved log sources", "error", err)
+		panic("Failed to load saved log sources. Root Cause: " + err.Error())
+	}
+	logStore.PutAll(savedLogSources)
+
+	// Configure and launch server
+	mux := http.NewServeMux()
+	mux.HandleFunc("/log-sources", handleLogSource)
+
+	slog.Info("Starting Server - Listening on port 8080")
+	http.ListenAndServe(":8080", mux)
 }
