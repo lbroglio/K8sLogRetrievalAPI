@@ -1,6 +1,6 @@
-package api
+package main
 
-// TODO - Logging
+// TODO - Consider JSON logging
 
 import (
 	"encoding/json"
@@ -37,7 +37,9 @@ func handleLogSource(writer http.ResponseWriter, request *http.Request) {
 
 		writer.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(writer).Encode(allLogSources)
+	// TODO - Make wrapper request format to abstract embedded type for POST and PUT here
 	case http.MethodPost:
+
 		slog.Info("Received POST request to add a new log source")
 		// Parse the request body to get the new log source
 		newLogSource := logsource.LogSource{}
@@ -112,11 +114,12 @@ func main() {
 
 	// Load persistence
 	savedLogSources, err := persistence.LoadSavedLogSources()
-	if err != nil {
-		slog.Error("Failed to load saved log sources", "error", err)
-		panic("Failed to load saved log sources. Root Cause: " + err.Error())
+	if err == nil {
+		slog.Info("Loaded saved log sources from disk", "count", len(savedLogSources))
+		logStore.PutAll(savedLogSources)
+	} else {
+		slog.Info("No saved log sources found on disk. Starting with an empty store.", "error", err)
 	}
-	logStore.PutAll(savedLogSources)
 
 	// Configure and launch server
 	mux := http.NewServeMux()
