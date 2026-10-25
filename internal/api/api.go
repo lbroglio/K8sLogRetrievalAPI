@@ -62,6 +62,7 @@ func HandleLogSource(writer http.ResponseWriter, request *http.Request) {
 
 	// Throw 405 Method Not Allowed for unsupported methods
 	default:
+		slog.Error("Received unsupported HTTP method request for /log-sources. Returning 405 Method Not Allowed.", "method", request.Method)
 		returnErrorResponse(writer, http.StatusMethodNotAllowed, "Method not allowed")
 	}
 }
