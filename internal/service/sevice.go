@@ -39,6 +39,22 @@ func (s *LogRetrievalService) GetAllLogSources() []logsource.LogSource {
 	return logSources
 }
 
+// GetLogSourceByID retrieves a log source by its ID from the in-memory store.
+func (s *LogRetrievalService) GetLogSourceByID(id string) (logsource.LogSource, error) {
+	slog.Info("Retrieving log source with ID", "logSourceID", id)
+
+	exists := s.logStore.ContainsKey(id)
+	if !exists {
+		slog.Error("Log source with the specified ID does not exist.", "logSourceID", id)
+		return logsource.LogSource{}, NotFoundError("Log source with the id " + id + " does not exist")
+	}
+
+	logSource := s.logStore.Get(id)
+
+	slog.Info("Returning log source", "logSourceID", id)
+	return logSource, nil
+}
+
 // AddNewLogSource adds a new log source to the in-memory store and persists it to disk.
 // TODO - Maybe return a pointer
 func (s *LogRetrievalService) AddNewLogSource(logSource logsource.LogSource) (logsource.LogSource, error) {

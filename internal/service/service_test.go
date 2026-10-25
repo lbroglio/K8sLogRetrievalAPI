@@ -87,6 +87,33 @@ func TestLogRetrievalService_GetAllLogSources_ReturnsAllSources(t *testing.T) {
 	}
 }
 
+func TestLogRetrievalService_GetLogSourceByID_Success(t *testing.T) {
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
+	service := NewLogRetrievalService()
+	expectedLogSource := testFileLogSource("test-id", "test-source")
+	service.logStore.Put(expectedLogSource.ID, expectedLogSource)
+
+	logSource, err := service.GetLogSourceByID(expectedLogSource.ID)
+	if err != nil {
+		t.Fatalf("Failed to get log source: %v", err)
+	}
+	if !reflect.DeepEqual(logSource, expectedLogSource) {
+		t.Errorf("Expected log source %v, got %v", expectedLogSource, logSource)
+	}
+}
+
+func TestLogRetrievalService_GetLogSourceByID_NotFoundError(t *testing.T) {
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
+	service := NewLogRetrievalService()
+
+	logSource, err := service.GetLogSourceByID("missing-id")
+
+	if !reflect.DeepEqual(logSource, logsource.LogSource{}) {
+		t.Errorf("Expected an empty log source, got %v", logSource)
+	}
+	assertServiceError(t, err, 404, "Log source with the id missing-id does not exist")
+}
+
 func TestLogRetrievalService_AddNewLogSource_Success(t *testing.T) {
 	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
 	service := NewLogRetrievalService()

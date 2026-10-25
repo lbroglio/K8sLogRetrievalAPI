@@ -66,3 +66,25 @@ func HandleLogSource(writer http.ResponseWriter, request *http.Request) {
 		returnErrorResponse(writer, http.StatusMethodNotAllowed, "Method not allowed")
 	}
 }
+
+// HandleLogSourceById handles HTTP requests to the /log-sources/{id} endpoint
+func HandleLogSourceById(writer http.ResponseWriter, request *http.Request) {
+	// Extract the log source ID from the URL path
+	id := request.PathValue("id")
+
+	switch request.Method {
+	case http.MethodGet:
+		slog.Info("Received GET request to retrieve log source by ID", "id", id)
+		logSource, err := logService.GetLogSourceByID(id)
+		if err != nil {
+			returnErrorResponseFromCustomError(writer, err)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(writer).Encode(logSource)
+	// Throw 405 Method Not Allowed for unsupported methods
+	default:
+		slog.Error("Received unsupported HTTP method request for /log-sources/{id}. Returning 405 Method Not Allowed.", "method", request.Method)
+		returnErrorResponse(writer, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
