@@ -5,7 +5,7 @@ COPY . .
 
 RUN make test build-static
 
-FROM alpine:latest
+FROM gcr.io/distroless/static:latest
 
 COPY --from=builder /app/bin/k8slogretrievalapi /usr/local/bin/k8slogretrievalapi
 
