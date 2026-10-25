@@ -82,6 +82,14 @@ func HandleLogSourceById(writer http.ResponseWriter, request *http.Request) {
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(writer).Encode(logSource)
+	case http.MethodDelete:
+		slog.Info("Received DELETE request to delete log source by ID", "id", id)
+		err := logService.DeleteLogSourceByID(id)
+		if err != nil {
+			returnErrorResponseFromCustomError(writer, err)
+			return
+		}
+		writer.WriteHeader(http.StatusOK)
 	// Throw 405 Method Not Allowed for unsupported methods
 	default:
 		slog.Error("Received unsupported HTTP method request for /log-sources/{id}. Returning 405 Method Not Allowed.", "method", request.Method)

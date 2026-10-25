@@ -110,3 +110,23 @@ func (s *LogRetrievalService) UpdateLogSource(logSource logsource.LogSource) (lo
 	slog.Info("Log source updated successfully.", "logSourceID", newLogSource.ID)
 	return newLogSource, nil
 }
+
+// DeleteLogSource deletes a log source from the in-memory store and removes it from disk.
+func (s *LogRetrievalService) DeleteLogSourceByID(id string) error {
+	slog.Info("Deleting log source", "logSourceID", id)
+
+	idExists := s.logStore.ContainsKey(id)
+	if !idExists {
+		slog.Error("Log source with the same ID does not exist.", "logSourceID", id)
+		return NotFoundError("Log source with the id " + id + " does not exist")
+	}
+
+	err := persistence.DeleteSavedLogSource(id)
+	if err != nil {
+		slog.Error("Failed to delete log source from disk. Returning 500 Internal Server Error.", "error", err)
+		return GenericServiceError("Failed to delete log source from disk. Root Cause: " + err.Error())
+	}
+	s.logStore.Delete(id)
+
+	return nil
+}

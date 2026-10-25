@@ -61,3 +61,35 @@ func LoadSavedLogSources() (map[string]logsource.LogSource, error) {
 
 	return logSources, nil
 }
+
+// DeleteSavedLogSource deletes the log source with the given ID from the saved log sources on disk.
+func DeleteSavedLogSource(id string) error {
+	persistenceRoot := config.GetPersistenceRootPath()
+
+	saveFilePath := filepath.Join(persistenceRoot, "log_sources.json")
+
+	contents, err := os.ReadFile(saveFilePath)
+	if err != nil {
+		return fmt.Errorf("Failed to read log sources from disk. Root Cause: %w", err)
+	}
+
+	logSources := make(map[string]logsource.LogSource)
+	err = json.Unmarshal(contents, &logSources)
+	if err != nil {
+		return fmt.Errorf("Failed to unmarshal log sources. Root Cause: %w", err)
+	}
+
+	delete(logSources, id)
+
+	logSourcesJSON, err := json.Marshal(logSources)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal log sources. Root Cause: %w", err)
+	}
+
+	err = os.WriteFile(saveFilePath, logSourcesJSON, 0644)
+	if err != nil {
+		return fmt.Errorf("Failed to write log sources to disk. Root Cause: %w", err)
+	}
+
+	return nil
+}

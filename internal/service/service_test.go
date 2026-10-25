@@ -215,6 +215,30 @@ func TestLogRetrievalService_UpdateLogSource_PersistenceError(t *testing.T) {
 	}
 }
 
+func TestLogRetrievalService_DeleteLogSource_Success(t *testing.T) {
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
+	service := NewLogRetrievalService()
+	logSource := testFileLogSource("test-id", "test-source")
+	service.AddNewLogSource(logSource)
+
+	err := service.DeleteLogSourceByID(logSource.ID)
+	if err != nil {
+		t.Fatalf("Failed to delete log source: %v", err)
+	}
+	if service.logStore.ContainsKey(logSource.ID) {
+		t.Error("Expected deleted log source to be removed from the service store")
+	}
+}
+
+func TestLogRetrievalService_DeleteLogSource_NotFoundError(t *testing.T) {
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
+	service := NewLogRetrievalService()
+
+	err := service.DeleteLogSourceByID("missing-id")
+
+	assertServiceError(t, err, 404, "Log source with the id missing-id does not exist")
+}
+
 func containsLogSource(logSources []logsource.LogSource, expected logsource.LogSource) bool {
 	for _, logSource := range logSources {
 		if reflect.DeepEqual(logSource, expected) {
