@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/lbroglio/K8sLogRetrievalAPI.git/internal/logsource"
 	"github.com/lbroglio/K8sLogRetrievalAPI.git/internal/service"
@@ -94,5 +95,53 @@ func HandleLogSourceById(writer http.ResponseWriter, request *http.Request) {
 	default:
 		slog.Error("Received unsupported HTTP method request for /log-sources/{id}. Returning 405 Method Not Allowed.", "method", request.Method)
 		returnErrorResponse(writer, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// HandleRetrieveLogsBySourceId handles HTTP requests to the /log-sources/{id}/logs endpoint
+func HandleRetrieveLogsBySourceId(writer http.ResponseWriter, request *http.Request) {
+	slog.Info("Received request to retrieve logs from log source by ID")
+	// Extract the log source ID from the URL path
+	id := request.PathValue("id")
+
+	// Get query parameters
+	numLogs := request.URL.Query().Get("num_logs")
+	startTime := request.URL.Query().Get("start_time")
+
+	if numLogs != "" && startTime != "" {
+		slog.Error("Received request with both num_logs and start_time query parameters. Returning 400 Bad Request.")
+		returnErrorResponse(writer, http.StatusBadRequest, "Cannot specify both num_logs and start_time query parameters")
+		return
+	}
+
+	if numLogs != "" {
+		slog.Info("Retrieving last N logs from log source by ID", "id", id, "num_logs", numLogs)
+		n, err := strconv.Atoi(numLogs)
+		if err != nil {
+			slog.Error("Failed to convert num_logs query parameter to integer. Returning 400 Bad Request.", "error", err)
+			returnErrorResponse(writer, http.StatusBadRequest, "Invalid num_logs query parameter")
+			return
+		}
+		logs, err := logService.RetrieveNLogsFromSourceById(id, n)
+		if err != nil {
+			returnErrorResponseFromCustomError(writer, err)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(writer).Encode(logs)
+	} else if startTime != "" {
+		slog.Info("Retrieving logs from log source by ID starting from a specific time", "id", id, "start_time", startTime)
+		// TODO - Implement retrieval of logs starting from a specific time
+		returnErrorResponse(writer, http.StatusNotImplemented, "Retrieving logs starting from a specific time is not implemented yet")
+		return
+	} else {
+		slog.Info("Retrieving all logs from log source by ID", "id", id)
+		logs, err := logService.RetrieveAllLogsFromSourceById(id)
+		if err != nil {
+			returnErrorResponseFromCustomError(writer, err)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(writer).Encode(logs)
 	}
 }

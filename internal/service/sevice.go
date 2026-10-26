@@ -130,3 +130,37 @@ func (s *LogRetrievalService) DeleteLogSourceByID(id string) error {
 
 	return nil
 }
+
+// RetrieveAllLogsFromSourceById retrieves all logs from a specific log source by its ID.
+func (s *LogRetrievalService) RetrieveAllLogsFromSourceById(id string) ([]string, error) {
+	logSource, err := s.GetLogSourceByID(id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	logs, err := logSource.RetrieveAllLogs()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return logs, nil
+}
+
+// RetrieveNLogsFromSourceById retrieves the last N logs from a specific log source by its ID.
+func (s *LogRetrievalService) RetrieveNLogsFromSourceById(id string, n int) ([]string, error) {
+	logSource, err := s.GetLogSourceByID(id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	logs, err := logSource.RetrieveNLogs(n)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return logs, nil
+}

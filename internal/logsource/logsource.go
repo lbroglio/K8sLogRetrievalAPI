@@ -195,6 +195,8 @@ func replaceDateInPattern(original string) string {
 	return updatedFilePattern
 }
 
+// getAllFilesMatchingPattern retrieves all files in the specified directory that match the given file pattern.
+// It returns a slice of matching file paths or an error if the operation fails.
 func getAllFilesMatchingPattern(filePath string, filePattern string) ([]string, error) {
 	effectiveFilePath := filepath.Join(filePath, filePattern)
 

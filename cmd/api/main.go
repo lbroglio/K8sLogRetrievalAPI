@@ -15,6 +15,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/log-sources", api.HandleLogSource)
 	mux.HandleFunc("/log-sources/{id}", api.HandleLogSourceById)
+	mux.HandleFunc("/log-sources/{id}/logs", api.HandleRetrieveLogsBySourceId)
 
 	slog.Info("Starting Server - Listening on port 8080")
 	http.ListenAndServe(":8080", mux)
