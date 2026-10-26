@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -215,11 +216,13 @@ func TestLogRetrievalService_UpdateLogSource_PersistenceError(t *testing.T) {
 	}
 }
 
-func TestLogRetrievalService_DeleteLogSource_Success(t *testing.T) {
+func TestLogRetrievalService_DeleteLogSourceByID_Success(t *testing.T) {
 	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
 	service := NewLogRetrievalService()
 	logSource := testFileLogSource("test-id", "test-source")
-	service.AddNewLogSource(logSource)
+	if _, err := service.AddNewLogSource(logSource); err != nil {
+		t.Fatalf("Failed to add log source: %v", err)
+	}
 
 	err := service.DeleteLogSourceByID(logSource.ID)
 	if err != nil {
@@ -230,12 +233,103 @@ func TestLogRetrievalService_DeleteLogSource_Success(t *testing.T) {
 	}
 }
 
-func TestLogRetrievalService_DeleteLogSource_NotFoundError(t *testing.T) {
+func TestLogRetrievalService_DeleteLogSourceByID_NotFoundError(t *testing.T) {
 	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
 	service := NewLogRetrievalService()
 
 	err := service.DeleteLogSourceByID("missing-id")
 
+	assertServiceError(t, err, 404, "Log source with the id missing-id does not exist")
+}
+
+func TestLogRetrievalService_DeleteLogSourceByID_PersistenceError(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", tempDir)
+	service := NewLogRetrievalService()
+	logSource := testFileLogSource("test-id", "test-source")
+	service.logStore.Put(logSource.ID, logSource)
+
+	if err := os.RemoveAll(tempDir); err != nil {
+		t.Fatalf("Failed to remove persistence root: %v", err)
+	}
+
+	err := service.DeleteLogSourceByID(logSource.ID)
+	if err == nil {
+		t.Fatal("Expected a persistence error")
+	}
+	var serviceErr ServiceError
+	if !errors.As(err, &serviceErr) {
+		t.Fatalf("Expected a ServiceError, got %T: %v", err, err)
+	}
+	if serviceErr.Code != 500 {
+		t.Errorf("Expected error code 500, got %d", serviceErr.Code)
+	}
+	if !service.logStore.ContainsKey(logSource.ID) {
+		t.Error("Expected log source to remain in the service store")
+	}
+}
+
+func TestLogRetrievalService_RetrieveAllLogsFromSourceById_Success(t *testing.T) {
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
+	logDirectory := t.TempDir()
+	logSource := testFileLogSource("test-id", "test-source")
+	logSource.FileLogSource.FilePath = logDirectory
+	if err := os.WriteFile(filepath.Join(logDirectory, "test-source.log"), []byte("INFO 1\nINFO 2"), 0644); err != nil {
+		t.Fatalf("Failed to create test log file: %v", err)
+	}
+	service := NewLogRetrievalService()
+	service.logStore.Put(logSource.ID, logSource)
+
+	logs, err := service.RetrieveAllLogsFromSourceById(logSource.ID)
+	if err != nil {
+		t.Fatalf("Failed to retrieve logs: %v", err)
+	}
+	if !reflect.DeepEqual(logs, []string{"INFO 1", "INFO 2"}) {
+		t.Errorf("Expected logs %v, got %v", []string{"INFO 1", "INFO 2"}, logs)
+	}
+}
+
+func TestLogRetrievalService_RetrieveAllLogsFromSourceById_NotFoundError(t *testing.T) {
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
+	service := NewLogRetrievalService()
+
+	logs, err := service.RetrieveAllLogsFromSourceById("missing-id")
+
+	if logs != nil {
+		t.Errorf("Expected nil logs, got %v", logs)
+	}
+	assertServiceError(t, err, 404, "Log source with the id missing-id does not exist")
+}
+
+func TestLogRetrievalService_RetrieveNLogsFromSourceById_Success(t *testing.T) {
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
+	logDirectory := t.TempDir()
+	logSource := testFileLogSource("test-id", "test-source")
+	logSource.FileLogSource.FilePath = logDirectory
+	if err := os.WriteFile(filepath.Join(logDirectory, "test-source.log"), []byte("INFO 1\nINFO 2\nINFO 3"), 0644); err != nil {
+		t.Fatalf("Failed to create test log file: %v", err)
+	}
+	service := NewLogRetrievalService()
+	service.logStore.Put(logSource.ID, logSource)
+
+	logs, err := service.RetrieveNLogsFromSourceById(logSource.ID, 2)
+	if err != nil {
+		t.Fatalf("Failed to retrieve logs: %v", err)
+	}
+	if !reflect.DeepEqual(logs, []string{"INFO 2", "INFO 3"}) {
+		t.Errorf("Expected logs %v, got %v", []string{"INFO 2", "INFO 3"}, logs)
+	}
+}
+
+func TestLogRetrievalService_RetrieveNLogsFromSourceById_NotFoundError(t *testing.T) {
+	t.Setenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT", t.TempDir())
+	service := NewLogRetrievalService()
+
+	logs, err := service.RetrieveNLogsFromSourceById("missing-id", 2)
+
+	if logs != nil {
+		t.Errorf("Expected nil logs, got %v", logs)
+	}
 	assertServiceError(t, err, 404, "Log source with the id missing-id does not exist")
 }
 
