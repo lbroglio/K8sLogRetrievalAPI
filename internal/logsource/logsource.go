@@ -177,6 +177,11 @@ func retrieveLastNLinesFromFileSource(source LogSource, n int) ([]string, error)
 	return logLines, nil
 }
 
+func retrieveLogsFromPodSource(source LogSource) ([]string, error) {
+	// TODO - Implement pod log retrieval
+	return []string{}, fmt.Errorf("Pod log retrieval not implemented yet")
+}
+
 // replaceInPattern replaces a target pattern in the original string with a replacement string. All
 // All replacement patterns should be enclosed in curly braces {}.
 // For example, if the original string is "log-{dd}-{MM}-{yyyy}.log", the target is "dd", and the replacement is "15", the function will return "log-15-{MM}-{yyyy}.log".

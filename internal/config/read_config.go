@@ -15,3 +15,7 @@ import (
 func GetPersistenceRootPath() string {
 	return os.Getenv("K8SLOGRETRIEVALAPI_PERSISTENCE_ROOT")
 }
+
+func GetKubeConfigPath() string {
+	return os.Getenv("K8SLOGRETRIEVALAPI_KUBECONFIG_PATH")
+}
